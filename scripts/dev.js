@@ -32,19 +32,34 @@ async function checkPort(port) {
   });
 }
 
+const basePort = parseInt(process.env.PORT || '', 10) || 3000;
+
+async function findAvailablePort(startPort, maxAttempts = 50) {
+  let port = startPort;
+  for (let i = 0; i < maxAttempts; i++) {
+    const inUse = await checkPort(port);
+    if (!inUse) return port;
+    port++;
+  }
+  throw new Error(`No free port found starting from ${startPort}`);
+}
+
 async function killProcessOnPort(port) {
   try {
     if (process.platform === 'win32') {
-      // Windows: Use netstat to find the process
-      const netstat = spawn('netstat', ['-ano', '|', 'findstr', `:${port}`]);
-      netstat.stdout.on('data', (data) => {
-        const match = data.toString().match(/\s+(\d+)$/);
-        if (match) {
-          const pid = match[1];
-          spawn('taskkill', ['/F', '/PID', pid]);
-        }
+      // Windows: Use cmd to pipe netstat to findstr
+      const cmd = spawn('cmd.exe', ['/c', `netstat -ano | findstr :${port}`]);
+      cmd.stdout.on('data', (data) => {
+        const lines = data.toString().split(/\r?\n/).filter(Boolean);
+        lines.forEach(line => {
+          const match = line.match(/\s+(\d+)$/);
+          if (match) {
+            const pid = match[1];
+            spawn('taskkill', ['/F', '/PID', pid]);
+          }
+        });
       });
-      await new Promise((resolve) => netstat.on('close', resolve));
+      await new Promise((resolve) => cmd.on('close', resolve));
     } else {
       // Unix-like systems: Use lsof
       const lsof = spawn('lsof', ['-ti', `:${port}`]);
@@ -67,17 +82,11 @@ async function killProcessOnPort(port) {
 }
 
 async function startDev() {
-  // Check if port 3000 is already in use
-  const isPortInUse = await checkPort(3000);
-  if (isPortInUse) {
-    console.error('Port 3000 is already in use. To find and kill the process using this port:\n\n' +
-      (process.platform === 'win32' 
-        ? '1. Run: netstat -ano | findstr :3000\n' +
-          '2. Note the PID (Process ID) from the output\n' +
-          '3. Run: taskkill /PID <PID> /F\n'
-        : `On macOS/Linux, run:\nnpm run cleanup\n`) +
-      '\nThen try running this command again.');
-    process.exit(1);
+  // Determine the port to use and find a free one starting from desiredPort
+  const desiredPort = parseInt(process.env.PORT || '', 10) || 3000;
+  const port = await findAvailablePort(desiredPort);
+  if (port !== desiredPort) {
+    console.warn(`Port ${desiredPort} is in use. Using free port ${port} instead.`);
   }
 
   const useTunnel = process.env.USE_TUNNEL === 'true';
@@ -85,7 +94,7 @@ async function startDev() {
 
   if (useTunnel) {
     // Start localtunnel and get URL
-    tunnel = await localtunnel({ port: 3000 });
+    tunnel = await localtunnel({ port });
     let ip;
     try {
       ip = await fetch('https://ipv4.icanhazip.com').then(res => res.text()).then(ip => ip.trim());
@@ -117,7 +126,7 @@ async function startDev() {
    5. Click "Preview" (note that it may take ~10 seconds to load)
 `);
   } else {
-    frameUrl = 'http://localhost:3000';
+    frameUrl = `http://localhost:${port}`;
     console.log(`
 💻 To test your mini app:
    1. Open the Warpcast Mini App Developer Tools: https://warpcast.com/~/developers
@@ -128,13 +137,13 @@ async function startDev() {
   }
   
   // Start next dev with appropriate configuration
-  const nextBin = path.normalize(path.join(projectRoot, 'node_modules', '.bin', 'next'));
+  const nextCli = path.normalize(path.join(projectRoot, 'node_modules', 'next', 'dist', 'bin', 'next'));
 
-  nextDev = spawn(nextBin, ['dev'], {
+  // Use Node to run Next CLI directly to avoid Windows shell quoting issues
+  nextDev = spawn(process.execPath, [nextCli, 'dev', '-p', String(port)], {
     stdio: 'inherit',
     env: { ...process.env, NEXT_PUBLIC_URL: frameUrl, NEXTAUTH_URL: frameUrl },
-    cwd: projectRoot,
-    shell: process.platform === 'win32' // Add shell option for Windows
+    cwd: projectRoot
   });
 
   // Handle cleanup
@@ -174,8 +183,8 @@ async function startDev() {
         }
       }
 
-      // Force kill any remaining processes on port 3000
-      await killProcessOnPort(3000);
+      // Force kill any remaining processes on selected port
+      await killProcessOnPort(port);
     } catch (error) {
       console.error('Error during cleanup:', error);
     } finally {
