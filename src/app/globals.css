@@ -68,3 +68,43 @@ body {
     --radius: 0.5rem;
   }
 }
+
+/* Force proper font weights and contrast */
+body {
+  font-weight: 500;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-weight: 700 !important;
+}
+
+label {
+  font-weight: 600 !important;
+  color: #111827 !important; /* Force dark gray */
+}
+
+button {
+  font-weight: 600 !important;
+}
+
+input, select, textarea {
+  font-weight: 500 !important;
+  border-width: 2px !important;
+  color: #111827 !important;
+}
+
+/* Fix text colors */
+.text-sm, .text-base {
+  font-weight: 600 !important;
+  color: #111827 !important;
+}
+
+/* Ensure proper contrast for muted text */
+.text-muted-foreground {
+  color: #374151 !important; /* Darker gray instead of light */
+}
+
+/* Fix card text */
+.card {
+  color: #111827 !important;
+}

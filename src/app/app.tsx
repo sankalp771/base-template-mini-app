@@ -1,11 +1,11 @@
 "use client";
 
 import React, { useState } from "react";
-import { HomeScreen } from "../components/HomeScreen";
-import { StoryLobby } from "../components/StoryLobby";
-import { StoryWriting } from "../components/StoryWriting";
-import { StoryProgress } from "../components/StoryProgress";
-import { StoryOutcome } from "../components/StoryOutcome";
+import { HomeScreen } from "~/components/HomeScreen";
+import { StoryLobby } from "~/components/StoryLobby";
+import { StoryWriting } from "~/components/StoryWriting";
+import { StoryProgress } from "~/components/StoryProgress";
+import { StoryOutcome } from "~/components/StoryOutcome";
 
 export default function App() {
   const [currentScreen, setCurrentScreen] = useState<string>("home");
